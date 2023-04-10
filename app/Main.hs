@@ -12,9 +12,17 @@ import Raylib.Core.Shapes (drawRectangle)
 import Raylib.Util (whileWindowOpen0)
 import Raylib.Util.Colors (lightGray, rayWhite)
 
+data CellState = Alive | Dead deriving (Eq, Show)
+
+type Point = (Int, Int)
+
+type Cell = (Point, CellState) -- I hate this.
+
+type Grid = [Cell]
+
 main :: IO ()
 main = do
-  window <- initWindow 500 500 "raylib [core] example - basic window"
+  window <- initWindow 500 500 "Game Of Life"
   setTargetFPS 60
 
   whileWindowOpen0
@@ -23,18 +31,26 @@ main = do
 
         clearBackground rayWhite
         -- drawText "Basic raylib window" 30 40 18 lightGray
-        
-        drawGridRecursively 0 0 50
+
+        drawGrid (stringToGrid "DDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAA")
 
         endDrawing
     )
 
   closeWindow window
 
-drawGridRecursively :: Int -> Int -> Int -> IO ()
-drawGridRecursively cellX cellY cellSize 
-  | cellX > 500 = drawGridRecursively 0 (cellY + cellSize) cellSize -- not general :vomit:
-  | cellY > 500 = return ()
-  | otherwise = do
-    drawRectangle cellX cellY cellSize cellSize lightGray
-    drawGridRecursively (cellX + cellSize) cellY cellSize
+drawGrid :: Grid -> IO [()]
+drawGrid grid = sequence (map (\x -> drawRectangle ((fst (fst x)) * 50) ((snd (fst x)) * 50) 50 50 lightGray) (filter (\x -> (snd x) == Alive) grid))
+
+cell :: Int -> Int -> CellState -> Cell
+cell x y state = ((x, y), state)
+
+deadGrid :: Int -> Int -> Grid
+deadGrid width height = [cell x y Dead | x <- [0 .. width], y <- [0 .. height]]
+
+charToCellState :: Char -> CellState
+charToCellState 'A' = Alive
+charToCellState 'D' = Dead
+
+stringToGrid :: [Char] -> Grid
+stringToGrid str = foldl (\acc c -> cell (((length acc)) `mod` 10) (((length acc)) `div` 10) (charToCellState c) : acc) [(cell 0 0 (charToCellState (head str)))] (tail str)
