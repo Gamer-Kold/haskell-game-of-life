@@ -9,7 +9,7 @@ import Raylib.Core
     setTargetFPS,
   )
 import Raylib.Core.Shapes (drawRectangle)
-import Raylib.Util (whileWindowOpen0)
+import Raylib.Util (whileWindowOpen)
 import Raylib.Util.Colors (lightGray, rayWhite)
 
 data CellState = Alive | Dead deriving (Eq, Show)
@@ -20,24 +20,31 @@ type Cell = (Point, CellState) -- I hate this.
 
 type Grid = [Cell]
 
+type FrameNo = Int
+
+type State = (FrameNo, Grid)
+
 main :: IO ()
-main = do
-  window <- initWindow 500 500 "Game Of Life"
-  setTargetFPS 60
+main =
+  let initialState = (0, stringToGrid "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDAAADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
+   in do
+        window <- initWindow 500 500 "Game Of Life"
+        setTargetFPS 60
+        whileWindowOpen
+          ( \a -> do
+              beginDrawing
 
-  whileWindowOpen0
-    ( do
-        beginDrawing
+              clearBackground rayWhite
+              -- drawText "Basic raylib window" 30 40 18 lightGray
 
-        clearBackground rayWhite
-        -- drawText "Basic raylib window" 30 40 18 lightGray
+              let newGrid = if (fst a `mod` 60) == 0 then mutateGrid $ snd a else snd a
+              drawGrid newGrid
+              endDrawing
+              return (fst a + 1, newGrid)
+          )
+          initialState
 
-        drawGrid (stringToGrid "DDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAADDDADDDAAA")
-
-        endDrawing
-    )
-
-  closeWindow window
+        closeWindow window
 
 drawGrid :: Grid -> IO [()]
 drawGrid grid = sequence (map (\x -> drawRectangle ((fst (fst x)) * 50) ((snd (fst x)) * 50) 50 50 lightGray) (filter (\x -> (snd x) == Alive) grid))
@@ -53,4 +60,19 @@ charToCellState 'A' = Alive
 charToCellState 'D' = Dead
 
 stringToGrid :: [Char] -> Grid
-stringToGrid str = foldl (\acc c -> cell (((length acc)) `mod` 10) (((length acc)) `div` 10) (charToCellState c) : acc) [(cell 0 0 (charToCellState (head str)))] (tail str)
+stringToGrid str = reverse $ foldl (\acc c -> cell (((length acc)) `mod` 10) (((length acc)) `div` 10) (charToCellState c) : acc) [(cell 0 0 (charToCellState (head str)))] (tail str)
+
+getCellFromGrid :: Point -> Grid -> Cell
+getCellFromGrid point grid = case filter (\x -> fst x == point) grid of
+  x : xs -> x
+  [] -> (point, Dead)
+
+adjacentCells :: Point -> Grid -> [Cell]
+adjacentCells point grid = [getCellFromGrid (fst point + x, snd point + y) grid | x <- [-1, 0, 1], y <- [-1, 0, 1], not (x == 0 && y == 0)] ++ [getCellFromGrid point grid] -- This actually felt really good to write
+
+newStateFromNoAliveNeighbours :: Int -> CellState
+newStateFromNoAliveNeighbours 3 = Alive
+newStateFromNoAliveNeighbours x = Dead
+
+mutateGrid :: Grid -> Grid
+mutateGrid grid = map ((\grid x -> (fst x, (newStateFromNoAliveNeighbours (length $ filter (\y -> snd y == Alive) (adjacentCells (fst x) grid))))) grid) grid
