@@ -37,7 +37,7 @@ main =
               clearBackground rayWhite
               -- drawText "Basic raylib window" 30 40 18 lightGray
 
-              let newGrid = if (fst a `mod` 60) == 0 then mutateGrid $ snd a else snd a
+              let newGrid = if (fst a `mod` 60) == 0 then filter (\x -> snd x == Alive) (mutateGrid $ snd a) else snd a
               drawGrid newGrid
               endDrawing
               return (fst a + 1, newGrid)
@@ -68,11 +68,14 @@ getCellFromGrid point grid = case filter (\x -> fst x == point) grid of
   [] -> (point, Dead)
 
 adjacentCells :: Point -> Grid -> [Cell]
-adjacentCells point grid = [getCellFromGrid (fst point + x, snd point + y) grid | x <- [-1, 0, 1], y <- [-1, 0, 1], not (x == 0 && y == 0)] ++ [getCellFromGrid point grid] -- This actually felt really good to write
+adjacentCells point grid = [getCellFromGrid (fst point + x, snd point + y) grid | x <- [-1, 0, 1], y <- [-1, 0, 1]] 
 
 newStateFromNoAliveNeighbours :: Int -> CellState
 newStateFromNoAliveNeighbours 3 = Alive
 newStateFromNoAliveNeighbours x = Dead
 
 mutateGrid :: Grid -> Grid
-mutateGrid grid = map ((\grid x -> (fst x, (newStateFromNoAliveNeighbours (length $ filter (\y -> snd y == Alive) (adjacentCells (fst x) grid))))) grid) grid
+mutateGrid [] = []
+mutateGrid (x:xs) = (map (\a -> mutateCell (x:xs) (fst a)) (adjacentCells (fst x) (x:xs))) ++ mutateGrid xs
+
+mutateCell grid point = (point, (newStateFromNoAliveNeighbours (length $ filter (\y -> snd y == Alive) (adjacentCells (point) grid))))
