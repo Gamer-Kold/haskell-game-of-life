@@ -2,15 +2,24 @@ module Main where
 
 import Raylib.Core
   ( beginDrawing,
+    beginMode2D,
     clearBackground,
     closeWindow,
     endDrawing,
+    endMode2D,
     initWindow,
+    getMouseDelta,
+    isMouseButtonDown,
+    getMousePosition,
+    getMouseWheelMove,
+    getScreenToWorld2D,
     setTargetFPS,
   )
 import Raylib.Core.Shapes (drawRectangle)
 import Raylib.Util (whileWindowOpen)
 import Raylib.Util.Colors (lightGray, rayWhite)
+import Raylib.Types (Vector2(Vector2), Camera2D(Camera2D, camera2D'offset, camera2D'zoom, camera2D'target, camera2D'rotation), MouseButton(MouseButtonRight))
+import Raylib.Util.Math((|+|), (|*))
 
 data CellState = Alive | Dead deriving (Eq, Show)
 
@@ -22,29 +31,46 @@ type Grid = [Cell]
 
 type FrameNo = Int
 
-type State = (FrameNo, Grid)
+type State = (FrameNo, Grid, Camera2D)
+
+cam = Camera2D (Vector2 0 0) (Vector2 0 0) 0 1
 
 main :: IO ()
 main =
-  let initialState = (0, stringToGrid "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDAAADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
+  let initialState = (0, stringToGrid "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDAAADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", cam)
    in do
         window <- initWindow 500 500 "Game Of Life"
         setTargetFPS 60
         whileWindowOpen
           ( \a -> do
+              scroll <- getMouseWheelMove
+              mousePos <- getMousePosition
+              mouseDelta <- getMouseDelta
+              mouseWorldPos <- getScreenToWorld2D mousePos $ third a
+              rightMouseButtonDown <- isMouseButtonDown MouseButtonRight
+              let newZoom = max (if scroll /= 0 then camera2D'zoom (third a) + (scroll * 0.125) else camera2D'zoom (third a)) 0.125
+              let newOffset = if scroll /= 0 then mousePos else camera2D'offset (third a)
+              let newTarget = if scroll /= 0 then mouseWorldPos else if rightMouseButtonDown then (camera2D'target $ third a) |+| (mouseDelta |* (-1 / (camera2D'zoom $ third a))) else camera2D'target $ third a
               beginDrawing
-
+              beginMode2D $ third a
               clearBackground rayWhite
               -- drawText "Basic raylib window" 30 40 18 lightGray
-
-              let newGrid = if (fst a `mod` 60) == 0 then filter (\x -> snd x == Alive) (mutateGrid $ snd a) else snd a
+              let newGrid = if (first a `mod` 60) == 0 then filter (\x -> snd x == Alive) (mutateGrid $ second a) else second a
+              let newFrameNo = if first a > 60 then 1 else first a + 1
               drawGrid newGrid
+              putStrLn $ show $ second a
+              endMode2D
               endDrawing
-              return (fst a + 1, newGrid)
+              return (newFrameNo , newGrid, Camera2D newOffset newTarget (camera2D'rotation $ third a) newZoom)
           )
           initialState
 
         closeWindow window
+
+
+first (x, _, _) = x
+second (_, x, _) = x
+third (_, _, x) = x
 
 drawGrid :: Grid -> IO [()]
 drawGrid grid = sequence (map (\x -> drawRectangle ((fst (fst x)) * 50) ((snd (fst x)) * 50) 50 50 lightGray) (filter (\x -> (snd x) == Alive) grid))
