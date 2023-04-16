@@ -102,6 +102,10 @@ newStateFromNoAliveNeighbours x = Dead
 
 mutateGrid :: Grid -> Grid
 mutateGrid [] = []
-mutateGrid (x:xs) = (map (\a -> mutateCell (x:xs) (fst a)) (adjacentCells (fst x) (x:xs))) ++ mutateGrid xs
+mutateGrid (x:xs) = removeDuplicatesFromGrid $ (map (\a -> mutateCell (x:xs) (fst a)) (adjacentCells (fst x) (x:xs))) ++ mutateGrid xs
+
+removeDuplicatesFromGrid :: Grid -> Grid 
+removeDuplicatesFromGrid [] = []
+removeDuplicatesFromGrid (x:xs) = x : removeDuplicatesFromGrid (filter (\a -> fst a /= fst x) xs)
 
 mutateCell grid point = (point, (newStateFromNoAliveNeighbours (length $ filter (\y -> snd y == Alive) (adjacentCells (point) grid))))
