@@ -10,6 +10,8 @@ import Raylib.Core
     initWindow,
     getMouseDelta,
     isMouseButtonDown,
+    isMouseButtonPressed,
+    isKeyPressed,
     getMousePosition,
     getMouseWheelMove,
     getScreenToWorld2D,
@@ -18,10 +20,11 @@ import Raylib.Core
 import Raylib.Core.Shapes (drawRectangle)
 import Raylib.Util (whileWindowOpen)
 import Raylib.Util.Colors (lightGray, rayWhite)
-import Raylib.Types (Vector2(Vector2), Camera2D(Camera2D, camera2D'offset, camera2D'zoom, camera2D'target, camera2D'rotation), MouseButton(MouseButtonRight))
+import Raylib.Types (Vector2(Vector2, vector2'x, vector2'y), Camera2D(Camera2D, camera2D'offset, camera2D'zoom, camera2D'target, camera2D'rotation), MouseButton(MouseButtonLeft, MouseButtonRight), KeyboardKey(KeyP))
 import Raylib.Util.Math((|+|), (|*))
 
 data CellState = Alive | Dead deriving (Eq, Show)
+data Mode = Build | Play deriving(Eq, Show)
 
 type Point = (Int, Int)
 
@@ -31,13 +34,13 @@ type Grid = [Cell]
 
 type FrameNo = Int
 
-type State = (FrameNo, Grid, Camera2D)
+type State = (FrameNo, Grid, Camera2D, Mode)
 
 cam = Camera2D (Vector2 0 0) (Vector2 0 0) 0 1
 
 main :: IO ()
 main =
-  let initialState = (0, stringToGrid "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDAAADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", cam)
+  let initialState = (0, stringToGrid "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDAAADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", cam, Build)
    in do
         window <- initWindow 500 500 "Game Of Life"
         setTargetFPS 60
@@ -54,23 +57,26 @@ main =
               beginDrawing
               beginMode2D $ third a
               clearBackground rayWhite
-              -- drawText "Basic raylib window" 30 40 18 lightGray
-              let newGrid = if (first a `mod` 60) == 0 then filter (\x -> snd x == Alive) (mutateGrid $ second a) else second a
+              leftMouseButtonDown <- isMouseButtonPressed MouseButtonLeft
+              pKeyDown <- isKeyPressed KeyP
+              let mouseGridPos = (floor (vector2'x mouseWorldPos / 50), floor (vector2'y mouseWorldPos / 50)) -- I have no fucking clue how this line of code works, I saw it in a dream -- I have no fucking clue how this line of code works, I saw it in a dream.
+              let newGrid = if fourth a == Play then if (first a `mod` 60) == 0 then filter (\x -> snd x == Alive) (mutateGrid $ second a) else second a else if leftMouseButtonDown then setCellInGrid mouseGridPos (second a) (if snd (getCellFromGrid mouseGridPos (second a)) == Alive then Dead else Alive) else second a
               let newFrameNo = if first a > 60 then 1 else first a + 1
+              let newMode = if pKeyDown then if fourth a == Build then Play else Build else fourth a
               drawGrid newGrid
-              putStrLn $ show $ second a
               endMode2D
               endDrawing
-              return (newFrameNo , newGrid, Camera2D newOffset newTarget (camera2D'rotation $ third a) newZoom)
+              return (newFrameNo , newGrid, Camera2D newOffset newTarget (camera2D'rotation $ third a) newZoom, newMode)
           )
           initialState
 
         closeWindow window
 
 
-first (x, _, _) = x
-second (_, x, _) = x
-third (_, _, x) = x
+first (x, _, _, _) = x
+second (_, x, _, _) = x
+third (_, _, x, _) = x
+fourth (_, _, _, x) = x
 
 drawGrid :: Grid -> IO [()]
 drawGrid grid = sequence (map (\x -> drawRectangle ((fst (fst x)) * 50) ((snd (fst x)) * 50) 50 50 lightGray) (filter (\x -> (snd x) == Alive) grid))
@@ -92,6 +98,9 @@ getCellFromGrid :: Point -> Grid -> Cell
 getCellFromGrid point grid = case filter (\x -> fst x == point) grid of
   x : xs -> x
   [] -> (point, Dead)
+
+setCellInGrid :: Point -> Grid -> CellState -> Grid
+setCellInGrid point grid state = (filter (\x -> fst x /= point) grid) ++ [(point, state)]
 
 adjacentCells :: Point -> Grid -> [Cell]
 adjacentCells point grid = [getCellFromGrid (fst point + x, snd point + y) grid | x <- [-1, 0, 1], y <- [-1, 0, 1]] 
